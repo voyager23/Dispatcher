@@ -13,6 +13,7 @@
 #include <vector>
 #include <queue>
 #include <unordered_map>
+#include <set>
 
 using namespace std;
 
@@ -112,15 +113,14 @@ uint64_t finite_field(std::vector<uint64_t> &nodeprime, int taskid, uint64_t n)
 			}
 			// a now has the value of a{n}
 			local_b += a;
-			cout << "a[" << n << "] mod " << p << " = " << a << endl;
+			// cout << "a[" << n << "] mod " << p << " = " << a << endl;
 			processed += 1;
 			if (processed % 100 == 0){
 				cout << taskid << ": " << processed << "/" << nodeprime.size() << endl;
 			}
-		} // Match: a[idx] => a7
-		
+		} // Match: a[idx] => a[1000]		
 	} // for prime:nodename
-	cout << taskid <<") local_b = " << local_b << endl;
+	// cout << taskid <<") local_b = " << local_b << endl;
 	return local_b;			
 }
 
@@ -178,6 +178,23 @@ int main (int argc, char *argv[])
 			MPI_Send( (blocks.front()).data(), stride, MPI_UNSIGNED_LONG_LONG, n, 123, MPI_COMM_WORLD);
 			blocks.pop();
 		}
+		// Recv Mode
+		uint64_t B = 0;
+		uint64_t recvbuff;
+		// recv all the results and sum to B
+		set<int>nodes;
+		for(int n = 1; n != numtasks; ++n) nodes.insert(n);
+		// listen for results
+		do {
+			MPI_Recv(&recvbuff, 1, MPI_UNSIGNED_LONG_LONG, MPI_ANY_SOURCE, 321, MPI_COMM_WORLD, &status);
+			B += recvbuff;
+			nodes.erase(status.MPI_SOURCE);
+			cout << status.MPI_SOURCE << ") " << recvbuff << ":" << B << endl;
+		} while(!nodes.empty());
+		
+		
+		
+		
 	} 
 	else 
 	{ 
@@ -189,12 +206,13 @@ int main (int argc, char *argv[])
 		MPI_Recv(recvbuff.data(), stride, MPI_UNSIGNED_LONG_LONG, 0, 123, MPI_COMM_WORLD, &status);
 		MPI_Get_count( &status, MPI_UNSIGNED_LONG_LONG, &count );
 		
-		cout << "Count: " << count << endl;
+		//~ for (auto p : recvbuff) cout << p << " ";
+		//~ cout << endl;
 		
-		for (auto p : recvbuff) cout << p << " ";
-		cout << endl;
+		uint64_t local_b = finite_field(recvbuff, taskid);
+		// send this back to root node
+		MPI_Send(&local_b, 1, MPI_UNSIGNED_LONG_LONG, 0, 321, MPI_COMM_WORLD);
 		
-		(void) finite_field(recvbuff, taskid);
 		
 	}
 	
