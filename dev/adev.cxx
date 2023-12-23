@@ -14,6 +14,7 @@
 #include <queue>
 
 using namespace std;
+
 std::vector<uint64_t> primes = {	// 200 primes
 1009,1013,1019,1021,1031,1033,1039,1049,1051,1061,
 1063,1069,1087,1091,1093,1097,1103,1109,1117,1123,
@@ -43,9 +44,10 @@ int main (int argc, char *argv[])
 {
 	const unsigned stride = 7;
 	
-	int  numtasks, len, partner, message, taskid;
+	int  taskid, numtasks, len, partner, message ;
 	char hostname[MPI_MAX_PROCESSOR_NAME];
 	MPI_Status status;
+	
 	MPI_Init(&argc, &argv);
 	MPI_Comm_rank(MPI_COMM_WORLD, &taskid);
 	MPI_Comm_size(MPI_COMM_WORLD, &numtasks);
@@ -67,27 +69,46 @@ int main (int argc, char *argv[])
 		while(1) {
 			do {
 				temp.push_back(*i);
-				if(++i == primes.end() ) break;
+				if(++i == primes.end()) break;
 			} while (i != j);
-			
+			// pad with zeros
+			while(temp.size() < stride) temp.push_back(0);
 			blocks.push(temp);
 			temp.clear();
 			
 			if(i == primes.end()) break;
 			
 			j = i + stride;
-		} 
-		//	Start Dispatch Mode
+		}
+		 
+		// Dispatch Mode
+		// initial round of data disribution
+		for (int n = 1; n != numtasks; ++n) {
+			MPI_Send( (blocks.front()).data(), stride, MPI_UNSIGNED_LONG_LONG, n, 123, MPI_COMM_WORLD);
+			blocks.pop();
+		}
 		
-		
+	
+
 	} else { 
-	
-	
-	
+		// Work node
+		vector<uint64_t> recvbuff;
+		int count;
+		recvbuff.resize(stride);
+		
+		MPI_Recv(recvbuff.data(), stride, MPI_UNSIGNED_LONG_LONG, 0, 123, MPI_COMM_WORLD, &status);
+		MPI_Get_count( &status, MPI_UNSIGNED_LONG_LONG, &count );
+		
+		cout << "Count: " << count << endl;
+		
+		for (auto p : recvbuff) cout << p << " ";
+		cout << endl;
+		
 	}
+	
+	
 	// Required clean up.
 	MPI_Finalize();
-	
 	// Required by C++ standard
 	return 0;
 	
