@@ -22,7 +22,7 @@ std::vector<uint64_t> primes = {	// 200 primes
 1217,1223,1229,1231,1237,1249,1259,1277,1279,1283,
 1289,1291,1297,1301,1303,1307,1319,1321,1327,1361,
 1367,1373,1381,1399,1409,1423,1427,1429,1433,1439,
-1447,1451,1453,1459,1471,1481,1483,1487,1489,1493,
+1459,1471,1481,1483,1487,1489,1493,1447,1451,1453, 
 1499,1511,1523,1531,1543,1549,1553,1559,1567,1571,
 1579,1583,1597,1601,1607,1609,1613,1619,1621,1627,
 1637,1657,1663,1667,1669,1693,1697,1699,1709,1721,
@@ -42,7 +42,6 @@ std::vector<uint64_t> primes = {	// 200 primes
 
 int main (int argc, char *argv[])
 {
-	const unsigned stride = 7;
 	
 	int  taskid, numtasks, len, partner, message ;
 	char hostname[MPI_MAX_PROCESSOR_NAME];
@@ -52,12 +51,20 @@ int main (int argc, char *argv[])
 	MPI_Comm_rank(MPI_COMM_WORLD, &taskid);
 	MPI_Comm_size(MPI_COMM_WORLD, &numtasks);
 	
+	const unsigned stride = primes.size() / (numtasks*4);
+
+	
 	// Assume Root node(0) are dedicated to preparation, dispatch and receive
 	// All other nodes are process nodes.
 	
 	if(taskid == 0) {
 		// divide the primes vector into blocks of 'stride' or less and save as discrete
 		// vectors in a queue.
+		
+		// For this to work numtasks * stride <= primes.size()
+		
+		cout << "Stride: " << stride << endl;
+		
 		std::queue<std::vector<uint64_t>> blocks;
 		std::vector<uint64_t> temp;
 		std::vector<uint64_t>::iterator i,j;
