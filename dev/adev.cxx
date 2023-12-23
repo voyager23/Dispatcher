@@ -12,8 +12,11 @@
 
 #include <vector>
 #include <queue>
+#include <unordered_map>
 
 using namespace std;
+
+uint64_t finite_field(std::vector<uint64_t> &nodeprime, int taskid, uint64_t n = 1e15);
 
 std::vector<uint64_t> primes = {	// 200 primes
 1009,1013,1019,1021,1031,1033,1039,1049,1051,1061,
@@ -37,6 +40,91 @@ std::vector<uint64_t> primes = {	// 200 primes
 2351,2357,2371,2377,2381,2383,2389,2393,2399,2411,
 2417,2423,2437,2441,2447,2459,2467,2473,2477,2503,1,2,3};
 
+uint64_t finite_field(std::vector<uint64_t> &nodeprime, int taskid, uint64_t n)
+{
+	// Version: 19.12.2023 14:09
+	// Modify the reference point to a[1000]. This seems to allow all moduli
+	// to return a cycle.
+	
+	uint64_t aRef, iRef, a, idx, local_b=0;
+	const uint64_t block_size = 1000;	// record progress every 1000 values
+	std::unordered_map<uint64_t,uint64_t> progress;
+	std::unordered_map<uint64_t,uint64_t>::iterator iter;
+	uint64_t processed = 0;
+	for(uint64_t p : nodeprime) {
+			
+		//cout << "Modulus:" << p << endl;
+		
+		// Move fwd to a[block_size]
+		a = 2359; idx = 3;	
+		do {
+			a = (6*a*a + 10*a + 3) % p;
+			idx += 1;
+		}while(idx != block_size);
+		
+		aRef = a;	//Reference value
+		
+		// Save first map entry here - map.emplace(1000, aRef)
+		progress.clear();
+		progress.emplace(3,2359);	// cover case where reset idx = 0
+		progress.emplace(block_size, aRef);
+		
+		// Search forward for matching value to aRef
+		
+		do {
+			a = (6*a*a + 10*a + 3) % p;
+			if (((++idx) % block_size) == 0) { 
+				progress.emplace(idx,a); //  progress has (4000, a) etc
+			}
+			
+		} while ((a != aRef)&&(idx <= n));
+		
+		if(idx > n){
+			std::cout<<"Error: idx > n."<< endl;			
+			exit(1);
+		} 
+		else 
+		{ // Match: a[idx] => aRef
+			uint64_t order = idx - block_size;
+			uint64_t residue = (n - block_size + 1) % order;	// corrected this line
+			int64_t offset = residue - 1;
+			if(offset < 0) offset += order;
+			uint64_t req_idx = block_size + offset;
+			
+			// refer to progress map
+			idx = (req_idx / block_size) * block_size;			
+			if(idx==0) {	// special case
+				idx = 3;	// progress has (3,2359)
+			} else {
+				iter = progress.find(idx);
+				if(iter == progress.end()) {
+					cout<<"entry not found in progress"<<endl;
+					exit(1);
+				}
+
+			}
+			// reset value of a from progress map			
+			a = (*iter).second;			
+			// ----------------
+			while(idx != req_idx){
+				a = (6*a*a + 10*a + 3) % p;
+				++idx;
+			}
+			// a now has the value of a{n}
+			local_b += a;
+			cout << "a[" << n << "] mod " << p << " = " << a << endl;
+			processed += 1;
+			if (processed % 100 == 0){
+				cout << taskid << ": " << processed << "/" << nodeprime.size() << endl;
+			}
+		} // Match: a[idx] => a7
+		
+	} // for prime:nodename
+	cout << taskid <<") local_b = " << local_b << endl;
+	return local_b;			
+}
+
+
 
 //======================================================================
 
@@ -50,42 +138,38 @@ int main (int argc, char *argv[])
 	MPI_Init(&argc, &argv);
 	MPI_Comm_rank(MPI_COMM_WORLD, &taskid);
 	MPI_Comm_size(MPI_COMM_WORLD, &numtasks);
-	
+	// For this to work numtasks * stride <= primes.size()
 	const unsigned stride = primes.size() / (numtasks*4);
-
 	
 	// Assume Root node(0) are dedicated to preparation, dispatch and receive
 	// All other nodes are process nodes.
 	
 	if(taskid == 0) {
 		// divide the primes vector into blocks of 'stride' or less and save as discrete
-		// vectors in a queue.
-		
-		// For this to work numtasks * stride <= primes.size()
+		// vectors in a queue of blocks.
 		
 		cout << "Stride: " << stride << endl;
 		
-		std::queue<std::vector<uint64_t>> blocks;
-		std::vector<uint64_t> temp;
-		std::vector<uint64_t>::iterator i,j;
+		queue<std::vector<uint64_t>> blocks;
+		vector<uint64_t> new_blk;
+		vector<uint64_t>::iterator i,j;
 		
 		i = primes.begin();
 		j = i + stride;
-		temp.clear();
+		new_blk.clear();
 		
 		while(1) {
 			do {
-				temp.push_back(*i);
+				new_blk.push_back(*i);
 				if(++i == primes.end()) break;
 			} while (i != j);
 			// pad with zeros
-			while(temp.size() < stride) temp.push_back(0);
-			blocks.push(temp);
-			temp.clear();
-			
+			while(new_blk.size() < stride) new_blk.push_back(0);
+			blocks.push(new_blk);
 			if(i == primes.end()) break;
-			
+			// prepare next loop
 			j = i + stride;
+			new_blk.clear();
 		}
 		 
 		// Dispatch Mode
@@ -94,10 +178,9 @@ int main (int argc, char *argv[])
 			MPI_Send( (blocks.front()).data(), stride, MPI_UNSIGNED_LONG_LONG, n, 123, MPI_COMM_WORLD);
 			blocks.pop();
 		}
-		
-	
-
-	} else { 
+	} 
+	else 
+	{ 
 		// Work node
 		vector<uint64_t> recvbuff;
 		int count;
@@ -110,6 +193,8 @@ int main (int argc, char *argv[])
 		
 		for (auto p : recvbuff) cout << p << " ";
 		cout << endl;
+		
+		(void) finite_field(recvbuff, taskid);
 		
 	}
 	
