@@ -1,10 +1,12 @@
 # Makefile for Dispatcher/dev
 
-TARGET = adev
+#Makefile for Dispatcher/dev folder
+
+TARGET = bdev
 PROCS = 12
 
-$(TARGET) : adev.cxx
-	mpic++ -std=c++17 -g adev.cxx -o ../bin/$(TARGET)
+$(TARGET) : $(TARGET).cxx
+	mpic++ -std=c++17 -g $(TARGET).cxx -o ../bin/$(TARGET)
 
 PHONY : run
 
