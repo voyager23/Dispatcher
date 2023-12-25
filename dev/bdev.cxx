@@ -144,7 +144,7 @@ int main (int argc, char *argv[])
 	// Assume Root node(0) are dedicated to preparation, dispatch and receive
 	// All other nodes are process nodes.
 	
-	if(taskid == 0) {
+	if(taskid == 0) { // -----Root Node-----
 		// divide the primes vector into blocks of 'stride' or less and save as discrete
 		// vectors in a queue of blocks.
 		
@@ -158,6 +158,7 @@ int main (int argc, char *argv[])
 		j = i + stride;
 		new_blk.clear();
 		
+		// populate the blocks queue
 		while(1) {
 			do {
 				new_blk.push_back(*i);
@@ -172,48 +173,64 @@ int main (int argc, char *argv[])
 			new_blk.clear();
 		}
 		 
-		// Dispatch Mode
-		// initial round of data disribution
-		for (int n = 1; n != numtasks; ++n) {
-			MPI_Send( (blocks.front()).data(), stride, MPI_UNSIGNED_LONG_LONG, n, 123, MPI_COMM_WORLD);
-			blocks.pop();
-		}
-		// Recv Mode
+		// Send/Recv Server
 		uint64_t B = 0;
 		uint64_t recvbuff;
-		// recv all the results and sum to B
-		set<int>nodes;
-		for(int n = 1; n != numtasks; ++n) nodes.insert(n);
-		// listen for results
+		int busy = 0;
+		// Handle data requests and results
 		do {
-			MPI_Recv(&recvbuff, 1, MPI_UNSIGNED_LONG_LONG, MPI_ANY_SOURCE, 321, MPI_COMM_WORLD, &status);
-			B += recvbuff;
-			nodes.erase(status.MPI_SOURCE);
-			cout << status.MPI_SOURCE << ") " << recvbuff << ":" << B << endl;
-		} while(!nodes.empty());
-		
-		
-		
-		
-	} 
-	else 
+			MPI_Recv(&recvbuff, 1, MPI_UNSIGNED_LONG_LONG, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+			switch (status.MPI_TAG)
+			{
+				case 123:	// Request for data
+					if(blocks.empty()==false){
+						MPI_Send((blocks.front()).data(), stride, MPI_UNSIGNED_LONG_LONG, status.MPI_SOURCE, 456, MPI_COMM_WORLD);
+						++busy;
+					} else {
+						MPI_Send(NULL, 0, MPI_UNSIGNED_LONG_LONG, status.MPI_SOURCE, 654, MPI_COMM_WORLD);
+					}
+				break;
+				case 321:	// local result
+					B += recvbuff;
+					--busy;				
+				break;
+				default:
+					cout << "Tag Error " << status.MPI_TAG << " not known." << endl;
+					break;
+			}
+		}while ((busy > 0) || (blocks.empty() == false));
+		cout << "B:" << B << endl;
+	}
+	
+	else // -----Work node-----
+	
 	{ 
-		// Work node
 		vector<uint64_t> recvbuff;
-		int count;
 		recvbuff.resize(stride);
-		
-		MPI_Recv(recvbuff.data(), stride, MPI_UNSIGNED_LONG_LONG, 0, 123, MPI_COMM_WORLD, &status);
-		MPI_Get_count( &status, MPI_UNSIGNED_LONG_LONG, &count );
-		
-		//~ for (auto p : recvbuff) cout << p << " ";
-		//~ cout << endl;
-		
-		uint64_t local_b = finite_field(recvbuff, taskid);
-		// send this back to root node
-		MPI_Send(&local_b, 1, MPI_UNSIGNED_LONG_LONG, 0, 321, MPI_COMM_WORLD);
-		
-		
+		uint64_t local_b = 0;	
+		do {
+			// send data request
+			MPI_Send(&local_b, 1, MPI_UNSIGNED_LONG_LONG, 0, 123, MPI_COMM_WORLD);
+			// listen for reply
+			MPI_Recv(&recvbuff, stride, MPI_UNSIGNED_LONG_LONG, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+			switch (status.MPI_TAG)
+			{
+				case 456:	// data
+					local_b = finite_field(recvbuff, taskid);
+					// send this back to root node
+					MPI_Send(&local_b, 1, MPI_UNSIGNED_LONG_LONG, 0, 321, MPI_COMM_WORLD);
+					break;
+					
+				case 654:	// stop
+					break;
+					
+				default:
+					cout << "Tag Error " << status.MPI_TAG << " not known." << endl;
+					break;				
+				
+			} // switch...	
+			
+		}while(status.MPI_TAG != 654); // do while not stop
 	}
 	
 	

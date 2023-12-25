@@ -3,7 +3,7 @@
 #Makefile for Dispatcher/dev folder
 
 TARGET = bdev
-PROCS = 12
+PROCS = 2
 
 $(TARGET) : $(TARGET).cxx
 	mpic++ -std=c++17 -g $(TARGET).cxx -o ../bin/$(TARGET)
