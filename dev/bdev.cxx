@@ -179,7 +179,9 @@ int main (int argc, char *argv[])
 		int busy = 0;
 		// Handle data requests and results
 		do {
+			cout<<"Root listening\n";
 			MPI_Recv(&recvbuff, 1, MPI_UNSIGNED_LONG_LONG, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+			cout<<"Root recv message\n";
 			switch (status.MPI_TAG)
 			{
 				case 123:	// Request for data
@@ -210,9 +212,12 @@ int main (int argc, char *argv[])
 		uint64_t local_b = 0;	
 		do {
 			// send data request
+			cout<<"Node sending request\n";
 			MPI_Send(&local_b, 1, MPI_UNSIGNED_LONG_LONG, 0, 123, MPI_COMM_WORLD);
 			// listen for reply
+			cout<<"Node listening\n";
 			MPI_Recv(&recvbuff, stride, MPI_UNSIGNED_LONG_LONG, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+			cout<<"Node has tag ",status.MPI_TAG,"\n";
 			switch (status.MPI_TAG)
 			{
 				case 456:	// data
