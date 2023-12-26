@@ -25,7 +25,7 @@ bool MillerRabin(uint64_t n);
 // Constants common to all nodes
 const int MAX_PROCS = 6 + 4 + 8 + (8 + 8 + 8 + 8);	// maximum number of cores available {50}
 const uint64_t n = 1e15;		// maximum number of iteration to calc. Example 1 n=10^3
-const uint64_t y = 1e6;
+const uint64_t y = 1e4;			// 1e6 requires 27m 18s with 11 + 1 processes
 const uint64_t x = 1e9;
 
 uint64_t finite_field(std::vector<uint64_t> &nodeprime, int taskid, uint64_t n)

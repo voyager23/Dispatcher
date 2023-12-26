@@ -1,4 +1,19 @@
 # Makefile for Dispatcher/dev
 
-adev : adev.cxx
-	mpi++ -std=c++17 adev.cxx -o ../bin/adev
+#Makefile for Dispatcher/dev folder
+
+TARGET = dispatch
+PROCS = 2
+CFLAGS = -O0
+DEBUG = -g
+
+$(TARGET) : $(TARGET).cxx
+	mpic++ -std=c++17 $(TARGET).cxx -o ../bin/$(TARGET)
+	
+millerrabin.o : millerrabin.cxx
+	mpic++ -c millerrabin.cxx -o millerrabin.o
+
+PHONY : run
+
+run :
+	mpirun -np $(PROCS) -H localhost:12 ../bin/$(TARGET)
